@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisMesh - Security Operations Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0e17;
+            --card-bg: #111927;
+            --accent-cyan: #00f2fe;
+            --accent-green: #00e676;
+            --accent-red: #ff1744;
+            --accent-yellow: #ffd600;
+            --text-main: #e0e6ed;
+            --text-dim: #78909c;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            padding: 24px;
+            line-height: 1.6;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #1f2d40;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+        .logo { font-size: 24px; font-weight: 800; color: var(--accent-cyan); letter-spacing: 2px; }
+        .badge-live {
+            background: rgba(0, 230, 118, 0.15);
+            color: var(--accent-green);
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--accent-green);
+            font-size: 12px;
+        }
+        .grid-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid #1f2d40;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .card h4 { font-size: 13px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
+        .card .stat { font-size: 28px; font-weight: 800; color: #fff; }
+        .threat-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        .threat-table th, .threat-table td {
+            text-align: left;
+            padding: 10px 14px;
+            border-bottom: 1px solid #1f2d40;
+            font-size: 13px;
+        }
+        .threat-table th { background: #162032; color: var(--accent-cyan); }
+        .badge-threat {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .threat-sql { background: rgba(255, 23, 68, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .threat-ai { background: rgba(255, 214, 0, 0.2); color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">⚡ AEGIS_MESH :: SOC_DASHBOARD</div>
+        <div class="badge-live">● ENGINE ONLINE</div>
+    </header>
+
+    <div class="grid-stats">
+        <div class="card">
+            <h4>Total Processed Traffic</h4>
+            <div class="stat" id="stat-total" style="color: var(--accent-cyan);">0</div>
+        </div>
+        <div class="card">
+            <h4>Neutralized Cyber Attacks</h4>
+            <div class="stat" id="stat-blocked" style="color: var(--accent-red);">0</div>
+        </div>
+        <div class="card">
+            <h4>Anti-DDoS Throttles</h4>
+            <div class="stat" id="stat-rate" style="color: var(--accent-yellow);">0</div>
+        </div>
+        <div class="card">
+            <h4>Semantic Cache Hits ($0 Cost)</h4>
+            <div class="stat" id="stat-cache" style="color: var(--accent-green);">0</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>🛡️ Live Security Incident Stream</h3>
+        <table class="threat-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Source IP</th>
+                    <th>Threat Category</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="threat-tbody">
+                <tr><td colspan="4" style="text-align:center; color: var(--text-dim);">Listening for inbound network anomalies...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function fetchMetrics() {
+            try {
+                const res = await fetch('/_aegis/metrics');
+                if (!res.ok) return;
+                const data = await res.json();
+                
+                document.getElementById('stat-total').innerText = data.metrics.total_requests;
+                document.getElementById('stat-blocked').innerText = data.metrics.blocked_attacks;
+                document.getElementById('stat-rate').innerText = data.metrics.rate_limited;
+                document.getElementById('stat-cache').innerText = data.metrics.cache_hits;
+
+                const tbody = document.getElementById('threat-tbody');
+                if (data.metrics.threat_logs && data.metrics.threat_logs.length > 0) {
+                    tbody.innerHTML = '';
+                    data.metrics.threat_logs.slice(-8).reverse().forEach(t => {
+                        const row = document.createElement('tr');
+                        const isAi = t.type.includes('PROMPT') || t.type.includes('INJECTION');
+                        row.innerHTML = `
+                            <td>${t.timestamp}</td>
+                            <td><code>${t.ip}</code></td>
+                            <td><span class="badge-threat ${isAi ? 'threat-ai' : 'threat-sql'}">${t.type}</span></td>
+                            <td>${t.details || t.path}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        setInterval(fetchMetrics, 1500);
+        fetchMetrics();
+    </script>
+</body>
+</html>
